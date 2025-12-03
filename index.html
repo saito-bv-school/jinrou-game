@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 
 <head>
@@ -214,6 +214,7 @@
 
         .nav-item {
             display: flex;
+            flex: 1;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -535,6 +536,13 @@
             z-index: 999;
             color: #ffaaaa;
         }
+
+        .nav-area {
+            display: flex;
+            flex: 1;
+            justify-content: space-around;
+            /* 均等配置 */
+        }
     </style>
 
     <script type="importmap">
@@ -560,9 +568,28 @@
                 <span v-else-if="state.phase === 'VOTE'">⚖️ 審判</span>
                 <span v-else>終幕</span>
             </div>
-            <div style="display:flex; align-items:center;">
-                <button class="icon-btn" @click="showRoleList = true">📖</button>
-                <div class="timer" v-if="state.timer_end_at > 0">{{ timeLeft }}</div>
+            <div class="nav-area">
+                <div class="nav-item" :class="{ active: activeTab === 'players' }" @click="activeTab = 'players'">
+                    <span class="nav-icon">♟</span><span>運命</span>
+                </div>
+                <div class="nav-item" :class="{ active: activeTab === 'action' }" @click="activeTab = 'action'">
+                    <span class="nav-icon">🔮</span><span>儀式</span>
+                    <span
+                        v-if="!hasActionDone && !state.winner_team && myPlayer?.is_alive && (state.phase === 'VOTE' || state.phase === 'NIGHT')"
+                        class="badge">!</span>
+                </div>
+                <div class="nav-item" :class="{ active: activeTab === 'logs' }" @click="activeTab = 'logs'">
+                    <span class="nav-icon">📜</span><span>年代記</span>
+                </div>
+                <!-- GM用タブ: ホストのみ表示 -->
+                <div v-if="isHost" class="nav-item" :class="{ active: activeTab === 'gm' }" @click="activeTab = 'gm'">
+                    <span class="nav-icon" style="color:var(--accent-gold);">👑</span><span
+                        style="color:var(--accent-gold);">支配</span>
+                </div>
+                <div style="display:flex; align-items:center;">
+                    <button class="icon-btn" @click="showRoleList = true">📖</button>
+                    <div class="timer" v-if="state.timer_end_at > 0">{{ timeLeft }}</div>
+                </div>
             </div>
         </header>
 
@@ -790,25 +817,6 @@
         </main>
 
         <!-- ナビゲーション -->
-        <nav>
-            <div class="nav-item" :class="{ active: activeTab === 'players' }" @click="activeTab = 'players'">
-                <span class="nav-icon">♟</span><span>運命</span>
-            </div>
-            <div class="nav-item" :class="{ active: activeTab === 'action' }" @click="activeTab = 'action'">
-                <span class="nav-icon">🔮</span><span>儀式</span>
-                <span
-                    v-if="!hasActionDone && !state.winner_team && myPlayer?.is_alive && (state.phase === 'VOTE' || state.phase === 'NIGHT')"
-                    class="badge">!</span>
-            </div>
-            <div class="nav-item" :class="{ active: activeTab === 'logs' }" @click="activeTab = 'logs'">
-                <span class="nav-icon">📜</span><span>年代記</span>
-            </div>
-            <!-- GM用タブ: ホストのみ表示 -->
-            <div v-if="isHost" class="nav-item" :class="{ active: activeTab === 'gm' }" @click="activeTab = 'gm'">
-                <span class="nav-icon" style="color:var(--accent-gold);">👑</span><span
-                    style="color:var(--accent-gold);">支配</span>
-            </div>
-        </nav>
 
     </div>
 
@@ -1127,15 +1135,22 @@
                         else if (myRole.value === 'SEER') path = `${base}/night/seer_action/${myUid.value}`;
                         else if (myRole.value === 'KNIGHT') path = `${base}/night/knight_action/${myUid.value}`;
                     }
-
                     if (path) {
-                        await set(dbRef(db, path), targetUid.value || 'SKIP');
-                        if (state.phase === 'NIGHT' && myRole.value === 'SEER' && targetUid.value) {
-                            const targetRole = privateDataAll[targetUid.value]?.role;
-                            if (targetRole === 'FOX') alert('水晶に映ったのは... 🦊 妖狐 ...（呪殺）');
-                            else alert(`水晶に映ったのは... ${targetRole === 'WEREWOLF' ? '🐺 人狼' : '○ 人間'} ...`);
+                        isSubmitting.value = true; // ボタン無効化
+                        try {
+                            await set(dbRef(db, path), targetUid.value || 'SKIP');
+                            if (state.phase === 'NIGHT' && myRole.value === 'SEER' && targetUid.value) {
+                                const targetRole = privateDataAll[targetUid.value]?.role;
+                                let msg = `水晶に映ったのは... ${targetRole === 'WEREWOLF' ? '🐺 人狼' : '○ 人間'} ...`;
+                                if (targetRole === 'FOX') msg = '水晶に映ったのは... 🦊 妖狐 ...（呪殺）';
+                                showAlert(msg);
+                            }
+                            targetUid.value = '';
+                        } catch (e) {
+                            errorMessage.value = "送信エラー: " + e.message;
+                        } finally {
+                            isSubmitting.value = false;
                         }
-                        targetUid.value = '';
                     }
                 };
 
